@@ -1,0 +1,8 @@
+{
+    "dependencies":["."],
+    "graphs":{
+        "adaptiv_rag_agent":"./src/graphs/graph_builder.py:graph"
+    },
+    "env":"./.env",
+    "python_version": "3.12"
+}
