@@ -127,9 +127,10 @@ async def ask_rag(request: QuestionRequest):
             "question": request.question.strip()
         }
         
-        # Execute the graph
+        # Execute the graph with memory support
         logger.info("Executing RAG graph...")
-        result = compiled_graph.invoke(input_state)
+        config = {"configurable": {"thread_id": f"conversation_{hash(request.question) % 10000}"}}
+        result = compiled_graph.invoke(input_state, config=config)
         
         # Extract the results
         answer = result.get("generation", "No answer generated")
