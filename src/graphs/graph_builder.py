@@ -2,7 +2,6 @@ from src.nodes.RAG_nodes import RAG_nodes
 from src.states.RAGState import GraphState
 from langgraph.graph import StateGraph, START, END
 from src.llms.groqllm import groqllm
-from langgraph.checkpoint.memory import MemorySaver
 
 
 
@@ -11,7 +10,6 @@ class Graph_builder:
     def __init__(self): 
         self.llm = groqllm().get_llm()
         self.graph = StateGraph(GraphState)
-        self.memory = MemorySaver()  # Add in-memory checkpointer
 
     def build_graph(self):
         """
@@ -27,7 +25,6 @@ class Graph_builder:
         generate = rag_nodes.generate 
         transform_query = rag_nodes.transform_query
         route_question = rag_nodes.route_question 
-        decide_to_generate = rag_nodes.decide_to_generate
         grade_generation_v_documents_and_question = rag_nodes.grade_generation_v_documents_and_question
         route_question_after_attempt = rag_nodes.route_question_after_attempts
         human_in_the_loop = rag_nodes.human_in_the_loop
@@ -99,7 +96,6 @@ class Graph_builder:
         self.graph.add_edge("send_answer_vectorstore", END)
 
         return self.graph.compile(
-            checkpointer=self.memory,
             interrupt_before=["human_in_the_loop"]
         )
     

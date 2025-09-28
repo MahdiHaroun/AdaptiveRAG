@@ -1,7 +1,6 @@
 from pydantic import BaseModel, Field 
 from langchain.prompts import ChatPromptTemplate
 from src.llms import groqllm 
-from src.states.RAGState import GradeDocuments 
 from src.llms.groqllm import groqllm
 
 

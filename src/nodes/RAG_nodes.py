@@ -240,12 +240,7 @@ class RAG_nodes:
         
 
 
-    def decide_to_generate(self, state: GraphState):
-        """
-        Legacy function - now handled by route_question_after_attempts
-        """
-        # This function is kept for backward compatibility but is no longer used
-        return self.route_question_after_attempts(state)
+    
         
 
 
