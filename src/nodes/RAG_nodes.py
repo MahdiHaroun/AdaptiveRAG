@@ -25,6 +25,25 @@ class RAG_nodes:
         self.hallucination_grader = GradeHallucinations().get_hallucination_grader()
         self.answer_grader = answer_grader().get_answer_grader()
         
+    
+    def initialize_state(self, state: GraphState):
+        """
+        Initialize or reset the document tries counter for each graph run.
+        
+        Args:
+            state (dict): The current graph state
+            
+        Returns:
+            state (dict): State with properly initialized number_of_document_tries
+        """
+        print("---INITIALIZING STATE---")
+        question = state["question"]
+        
+        # Always reset the counter to 0 for each new graph run
+        return {
+            "question": question,
+            "number_of_document_tries": 0
+        }
 
     def retrieve(self , state: GraphState):
 
@@ -39,10 +58,11 @@ class RAG_nodes:
         """
         print("---RETRIEVE---")
         question = state["question"]
+        attempts = state.get("number_of_document_tries", 0)
 
         # Retrieval
         documents = self.retriever.invoke(question)
-        return {"documents": documents, "question": question}
+        return {"documents": documents, "question": question, "number_of_document_tries": attempts}
     
 
     def generate(self , state: GraphState): 
@@ -58,10 +78,11 @@ class RAG_nodes:
         print("---GENERATE---")
         question = state["question"]
         documents = state["documents"]
+        attempts = state.get("number_of_document_tries", 0)
 
         # RAG generation
         generation = self.rag_chain.invoke({"context": documents, "question": question})
-        return {"documents": documents, "question": question, "generation": generation}
+        return {"documents": documents, "question": question, "generation": generation, "number_of_document_tries": attempts}
     
 
     def grade_documents(self, state: GraphState):
@@ -78,6 +99,7 @@ class RAG_nodes:
         print("---CHECK DOCUMENT RELEVANCE TO QUESTION---")
         question = state["question"]
         documents = state["documents"]
+        attempts = state.get("number_of_document_tries", 0)
 
         # Score each doc
         filtered_docs = []
@@ -93,7 +115,7 @@ class RAG_nodes:
             else:
                 print("---GRADE: DOCUMENT NOT RELEVANT---")
                 continue
-        return {"documents": filtered_docs, "question": question}
+        return {"documents": filtered_docs, "question": question, "number_of_document_tries": attempts}
     
 
 
@@ -111,10 +133,16 @@ class RAG_nodes:
         print("---TRANSFORM QUERY---")
         question = state["question"]
         documents = state["documents"]
+        current_attempts = state.get("number_of_document_tries", 0)
 
         # Re-write question
         better_question = self.question_rewriter.invoke({"question": question})
-        return {"documents": documents, "question": better_question}
+        
+        # Increment the number of attempts
+        new_attempts = current_attempts + 1
+        print(f"---INCREMENTING ATTEMPTS: {new_attempts}---")
+        
+        return {"documents": documents, "question": better_question, "number_of_document_tries": new_attempts}
     
 
 
@@ -131,13 +159,14 @@ class RAG_nodes:
 
         print("---WEB SEARCH---")
         question = state["question"]
+        attempts = state.get("number_of_document_tries", 0)
 
         # Web search
         docs = self.web_search_tool.invoke({"query": question})
         web_results = "\n".join([d["content"] for d in docs])
         web_results = Document(page_content=web_results)
 
-        return {"documents": web_results, "question": question}
+        return {"documents": web_results, "question": question, "number_of_document_tries": attempts}
     
 
 
@@ -171,30 +200,10 @@ class RAG_nodes:
 
     def decide_to_generate(self, state: GraphState):
         """
-        Determines whether to generate an answer, or re-generate a question.
-
-        Args:
-            state (dict): The current graph state
-
-        Returns:
-            str: Binary decision for next node to call
+        Legacy function - now handled by route_question_after_attempts
         """
-
-        print("---ASSESS GRADED DOCUMENTS---")
-        state["question"]
-        filtered_documents = state["documents"]
-
-        if not filtered_documents:
-            # All documents have been filtered check_relevance
-            # We will re-generate a new query
-            print(
-                "---DECISION: ALL DOCUMENTS ARE NOT RELEVANT TO QUESTION, TRANSFORM QUERY---"
-            )
-            return "transform_query"
-        else:
-            # We have relevant documents, so generate answer
-            print("---DECISION: GENERATE---")
-            return "generate"
+        # This function is kept for backward compatibility but is no longer used
+        return self.route_question_after_attempts(state)
         
 
 
@@ -239,6 +248,38 @@ class RAG_nodes:
             print("---DECISION: GENERATION IS NOT GROUNDED IN DOCUMENTS, RE-TRY---")
             return "not supported"
         
+
+    def route_question_after_attempts(self , state: GraphState):
+        """
+        Route based on document relevance and attempt count.
+        
+        Args:
+            state (dict): The current graph state
+
+        Returns:
+            str: Next node to call
+        """
+
+        print("---ASSESS GRADED DOCUMENTS---")
+        filtered_documents = state["documents"]
+        attempts = state.get("number_of_document_tries", 0)
+
+        if not filtered_documents:
+            # No relevant documents found
+            print("---NO RELEVANT DOCUMENTS FOUND---")
+            print(f"---ATTEMPT NUMBER: {attempts}---")
+            
+            if attempts >= 3:
+                print("---ROUTE TO WEB SEARCH AFTER 3 ATTEMPTS---")
+                return "web_search"
+            else:
+                print("---ROUTE TO TRANSFORM QUERY (CONTINUE TRYING)---")
+                return "transform_query"
+        else:
+            # We have relevant documents, so generate answer
+            print("---DECISION: GENERATE---")
+            return "generate"
+    
 
 
 

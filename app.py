@@ -122,7 +122,7 @@ async def ask_rag(request: QuestionRequest):
     try:
         logger.info(f"Processing question: {request.question}")
         
-        # Prepare the input state for the graph (only question is needed as input)
+        # Prepare the input state for the graph (only question needed, counter will be initialized)
         input_state = {
             "question": request.question.strip()
         }

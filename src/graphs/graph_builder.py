@@ -5,6 +5,7 @@ from src.llms.groqllm import groqllm
 
 
 
+
 class Graph_builder: 
     def __init__(self): 
         self.llm = groqllm().get_llm()
@@ -18,6 +19,7 @@ class Graph_builder:
         """
         rag_nodes = RAG_nodes()
         # Define nodes
+        initialize_state = rag_nodes.initialize_state
         web_search = rag_nodes.web_search
         retrieve = rag_nodes.retrieve
         grade_documents = rag_nodes.grade_documents
@@ -26,6 +28,7 @@ class Graph_builder:
         route_question = rag_nodes.route_question 
         decide_to_generate = rag_nodes.decide_to_generate
         grade_generation_v_documents_and_question = rag_nodes.grade_generation_v_documents_and_question
+        route_question_after_attempt = rag_nodes.route_question_after_attempts
         
 
 
@@ -33,14 +36,17 @@ class Graph_builder:
 
         
 
+        self.graph.add_node("initialize_state", initialize_state)
         self.graph.add_node("web_search" , web_search) 
         self.graph.add_node("retrieve" , retrieve)
         self.graph.add_node("grade_documents" , grade_documents)
         self.graph.add_node("generate" , generate)
         self.graph.add_node("transform_query" , transform_query)
 
+        # First, initialize the state, then route the question
+        self.graph.add_edge(START, "initialize_state")
         self.graph.add_conditional_edges(
-            START, 
+            "initialize_state", 
             route_question, 
             {
                 "web_search": "web_search",
@@ -51,9 +57,10 @@ class Graph_builder:
         self.graph.add_edge("retrieve", "grade_documents")
         self.graph.add_conditional_edges(
             "grade_documents",
-            decide_to_generate,
+            route_question_after_attempt,  # Use the routing function directly
             {
                 "generate": "generate",
+                "web_search": "web_search",
                 "transform_query": "transform_query"
             },
         )

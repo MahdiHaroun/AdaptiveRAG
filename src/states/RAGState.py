@@ -19,6 +19,7 @@ class GraphState(TypedDict):
 
     question: str
     generation: str
+    number_of_document_tries: int
     documents: List[str]
 
 
