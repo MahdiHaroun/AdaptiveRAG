@@ -1,7 +1,7 @@
 from src.nodes.RAG_nodes import RAG_nodes 
 from src.states.RAGState import GraphState
 from langgraph.graph import StateGraph, START, END
-from src.llms.groqllm import groqllm 
+from src.llms.groqllm import groqllm
 
 
 
@@ -11,10 +11,9 @@ class Graph_builder:
         self.llm = groqllm().get_llm()
         self.graph = StateGraph(GraphState)
 
-
     def build_graph(self):
         """
-        Build a graph to generate blogss based on topic
+        Build a graph to generate answers to questions using a RAG approach.
 
         """
         rag_nodes = RAG_nodes()
@@ -29,6 +28,9 @@ class Graph_builder:
         decide_to_generate = rag_nodes.decide_to_generate
         grade_generation_v_documents_and_question = rag_nodes.grade_generation_v_documents_and_question
         route_question_after_attempt = rag_nodes.route_question_after_attempts
+        human_in_the_loop = rag_nodes.human_in_the_loop
+        send_answer_vectorstore = rag_nodes.send_answer_vectorstore
+        decide_to_upload = rag_nodes.decide_to_upload
         
 
 
@@ -42,6 +44,10 @@ class Graph_builder:
         self.graph.add_node("grade_documents" , grade_documents)
         self.graph.add_node("generate" , generate)
         self.graph.add_node("transform_query" , transform_query)
+        self.graph.add_node("human_in_the_loop" , human_in_the_loop)
+        self.graph.add_node("send_answer_vectorstore" , send_answer_vectorstore)
+        self.graph.add_node("decide_to_upload" , decide_to_upload)
+
 
         # First, initialize the state, then route the question
         self.graph.add_edge(START, "initialize_state")
@@ -65,17 +71,32 @@ class Graph_builder:
             },
         )
         self.graph.add_edge("transform_query", "retrieve")
+
+
         self.graph.add_conditional_edges(
             "generate",
             grade_generation_v_documents_and_question,
             {
                 "not supported" : END,  # End if hallucinated - avoid infinite loops
-                "useful": END,
+                "useful_websearch": "human_in_the_loop",  # Go to human decision for web search uploads
+                "useful_vectorstore": END,  # End directly for vector store results
                 "not useful": "transform_query"  # Only retry if answer doesn't address question
             },
         )   
 
-        return self.graph.compile()
+        # Human decides whether to upload the web search result to vector store
+        self.graph.add_conditional_edges(
+            "human_in_the_loop",
+            decide_to_upload,
+            {
+                "yes": "send_answer_vectorstore",
+                "no": END
+            },
+        )
+        
+        self.graph.add_edge("send_answer_vectorstore", END)
+
+        return self.graph.compile(interrupt_before=["human_in_the_loop"])
     
     def get_compiled_graph(self):
         """

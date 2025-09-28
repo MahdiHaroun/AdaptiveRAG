@@ -21,6 +21,8 @@ class GraphState(TypedDict):
     generation: str
     number_of_document_tries: int
     documents: List[str]
+    upload_status: str
+    source_type: str  # "vectorstore" or "websearch"
 
 
 

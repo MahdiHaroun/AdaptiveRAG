@@ -9,6 +9,7 @@ from src.web_search.web_search_tool import web_search_tool
 from src.chains.question_router import question_router
 from src.chains.answer_grader import answer_grader
 from src.chains.hallucination_grader import GradeHallucinations
+from utils.generated_document_uploader import upload_generated_answers
 
 class RAG_nodes: 
     """
@@ -28,21 +29,23 @@ class RAG_nodes:
     
     def initialize_state(self, state: GraphState):
         """
-        Initialize or reset the document tries counter for each graph run.
+        Initialize or reset the document tries counter and upload status for each graph run.
         
         Args:
             state (dict): The current graph state
             
         Returns:
-            state (dict): State with properly initialized number_of_document_tries
+            state (dict): State with properly initialized fields
         """
         print("---INITIALIZING STATE---")
         question = state["question"]
         
-        # Always reset the counter to 0 for each new graph run
+        # Always reset the counter, upload status, and source type for each new graph run
         return {
             "question": question,
-            "number_of_document_tries": 0
+            "number_of_document_tries": 0,
+            "upload_status": "False",
+            "source_type": "unknown"
         }
 
     def retrieve(self , state: GraphState):
@@ -59,10 +62,17 @@ class RAG_nodes:
         print("---RETRIEVE---")
         question = state["question"]
         attempts = state.get("number_of_document_tries", 0)
-
+        upload_status = state.get("upload_status", "False")
+        
         # Retrieval
         documents = self.retriever.invoke(question)
-        return {"documents": documents, "question": question, "number_of_document_tries": attempts}
+        return {
+            "documents": documents, 
+            "question": question, 
+            "number_of_document_tries": attempts, 
+            "upload_status": upload_status,
+            "source_type": "vectorstore"
+        }
     
 
     def generate(self , state: GraphState): 
@@ -79,10 +89,19 @@ class RAG_nodes:
         question = state["question"]
         documents = state["documents"]
         attempts = state.get("number_of_document_tries", 0)
+        upload_status = state.get("upload_status", "False")
+        source_type = state.get("source_type", "unknown")
 
         # RAG generation
         generation = self.rag_chain.invoke({"context": documents, "question": question})
-        return {"documents": documents, "question": question, "generation": generation, "number_of_document_tries": attempts}
+        return {
+            "documents": documents, 
+            "question": question, 
+            "generation": generation, 
+            "number_of_document_tries": attempts, 
+            "upload_status": upload_status,
+            "source_type": source_type
+        }
     
 
     def grade_documents(self, state: GraphState):
@@ -100,6 +119,8 @@ class RAG_nodes:
         question = state["question"]
         documents = state["documents"]
         attempts = state.get("number_of_document_tries", 0)
+        upload_status = state.get("upload_status", "False")
+        source_type = state.get("source_type", "unknown")
 
         # Score each doc
         filtered_docs = []
@@ -115,7 +136,13 @@ class RAG_nodes:
             else:
                 print("---GRADE: DOCUMENT NOT RELEVANT---")
                 continue
-        return {"documents": filtered_docs, "question": question, "number_of_document_tries": attempts}
+        return {
+            "documents": filtered_docs, 
+            "question": question, 
+            "number_of_document_tries": attempts, 
+            "upload_status": upload_status,
+            "source_type": source_type
+        }
     
 
 
@@ -134,6 +161,8 @@ class RAG_nodes:
         question = state["question"]
         documents = state["documents"]
         current_attempts = state.get("number_of_document_tries", 0)
+        upload_status = state.get("upload_status", "False")
+        source_type = state.get("source_type", "unknown")
 
         # Re-write question
         better_question = self.question_rewriter.invoke({"question": question})
@@ -142,7 +171,13 @@ class RAG_nodes:
         new_attempts = current_attempts + 1
         print(f"---INCREMENTING ATTEMPTS: {new_attempts}---")
         
-        return {"documents": documents, "question": better_question, "number_of_document_tries": new_attempts}
+        return {
+            "documents": documents, 
+            "question": better_question, 
+            "number_of_document_tries": new_attempts, 
+            "upload_status": upload_status,
+            "source_type": source_type
+        }
     
 
 
@@ -160,13 +195,20 @@ class RAG_nodes:
         print("---WEB SEARCH---")
         question = state["question"]
         attempts = state.get("number_of_document_tries", 0)
+        upload_status = state.get("upload_status", "False")
 
         # Web search
         docs = self.web_search_tool.invoke({"query": question})
         web_results = "\n".join([d["content"] for d in docs])
         web_results = Document(page_content=web_results)
 
-        return {"documents": web_results, "question": question, "number_of_document_tries": attempts}
+        return {
+            "documents": web_results, 
+            "question": question, 
+            "number_of_document_tries": attempts, 
+            "upload_status": upload_status,
+            "source_type": "websearch"
+        }
     
 
 
@@ -211,6 +253,7 @@ class RAG_nodes:
     def grade_generation_v_documents_and_question(self , state:GraphState ):
         """
         Determines whether the generation is grounded in the document and answers question.
+        Only routes to human-in-the-loop for web search results.
 
         Args:
             state (dict): The current graph state
@@ -223,6 +266,7 @@ class RAG_nodes:
         question = state["question"]
         documents = state["documents"]  
         generation = state["generation"]
+        source_type = state.get("source_type", "unknown")
 
         score = self.hallucination_grader.invoke(
             {"documents": documents, "generation": generation}
@@ -240,7 +284,13 @@ class RAG_nodes:
             grade = score.binary_score if hasattr(score, 'binary_score') else score.get('binary_score', 'no')
             if grade == "yes":
                 print("---DECISION: GENERATION ADDRESSES QUESTION---")
-                return "useful"
+                # Only allow human-in-the-loop for web search results
+                if source_type == "websearch":
+                    print("---WEB SEARCH RESULT: ROUTE TO HUMAN DECISION---")
+                    return "useful_websearch"
+                else:
+                    print("---VECTOR STORE RESULT: END PROCESS---")
+                    return "useful_vectorstore"
             else:
                 print("---DECISION: GENERATION DOES NOT ADDRESS QUESTION---")
                 return "not useful"
@@ -279,10 +329,117 @@ class RAG_nodes:
             # We have relevant documents, so generate answer
             print("---DECISION: GENERATE---")
             return "generate"
-    
+        
+
+    def human_in_the_loop(self, state: GraphState):
+        """
+        Human-in-the-loop intervention for deciding whether to upload web search results.
+        
+        This node will be interrupted by the graph, allowing human decision making.
+        The human can set upload_status in the state to control the next action.
+
+        Args:
+            state (dict): The current graph state
+            
+        Returns:
+            state (dict): State with human decision for upload
+        """
+        print("---HUMAN IN THE LOOP INTERVENTION REQUIRED---")
+        print("---WAITING FOR HUMAN DECISION ON UPLOADING WEB SEARCH RESULT---")
+        
+        question = state["question"]
+        generation = state["generation"]
+        documents = state["documents"]
+        attempts = state.get("number_of_document_tries", 0)
+        source_type = state.get("source_type", "unknown")
+        
+        # The upload_status will be set by human intervention
+        # Default to "False" if not set by human
+        upload_status = state.get("upload_status", "False")
+        
+        print(f"Question: {question}")
+        print(f"Generated Answer: {generation}")
+        print(f"Source Type: {source_type}")
+        print(f"Upload Status: {upload_status}")
+        
+        return {
+            "question": question,
+            "generation": generation,
+            "documents": documents,
+            "number_of_document_tries": attempts,
+            "upload_status": upload_status,
+            "source_type": source_type
+        }
+        
+        
 
 
+    def decide_to_upload(self, state: GraphState):
+        """
+        Decide whether to upload the generated answer to vector store based on human decision.
+        
+        Args:
+            state (dict): The current graph state
+            
+        Returns:
+            str: "yes" to upload, "no" to skip
+        """
+        print("---DECIDE TO UPLOAD---")
+        upload_status = state.get("upload_status", "False")
+        
+        if upload_status.lower() in ["true", "yes", "1"]:
+            print("---DECISION: UPLOAD TO VECTOR STORE---")
+            return "yes"
+        else:
+            print("---DECISION: DO NOT UPLOAD---")
+            return "no"
+        
+        
 
+    def send_answer_vectorstore(self, state: GraphState):
+        """
+        Send answer from websearch to vectorstore
+
+        Args:
+            state (dict): The current graph state
+            
+        Returns:
+            state (dict): Updated state after upload
+        """
+
+        print("---SENDING ANSWER FROM WEBSEARCH TO VECTORSTORE---")
+        question = state["question"]
+        answer = state["generation"]
+        documents = state["documents"]
+        attempts = state.get("number_of_document_tries", 0)
+        source_type = state.get("source_type", "unknown")
+
+        print("---PREPARING TO UPLOAD GENERATED ANSWER AND SOURCE DOCUMENTS TO ASTRA DB---")
+        print(f"---SOURCE TYPE: {source_type}---")
+
+        try:
+            uploader = upload_generated_answers(documents, answer)
+            upload_result = uploader.upload_answer()
+            print("---UPLOAD SUCCESSFUL---")
+            
+            return {
+                "question": question,
+                "generation": answer,
+                "documents": documents,
+                "number_of_document_tries": attempts,
+                "upload_status": "completed",
+                "source_type": source_type
+            }
+        except Exception as e:
+            print(f"---UPLOAD FAILED: {e}---")
+            return {
+                "question": question,
+                "generation": answer,
+                "documents": documents,
+                "number_of_document_tries": attempts,
+                "upload_status": "failed",
+                "source_type": source_type
+            }
 
 
         

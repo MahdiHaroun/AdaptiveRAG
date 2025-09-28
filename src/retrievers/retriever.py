@@ -20,7 +20,7 @@ class retriever:
                 api_endpoint=os.getenv('ASTRA_DB_API_ENDPOINT'),
                 token=os.getenv('ASTRA_DB_APPLICATION_TOKEN'),
                 namespace= None,
-                collection_name="astra_vector_langchain",
+                collection_name="astra_vector_langchain", 
             )
 
             retriever=vectorstore.as_retriever()
