@@ -18,3 +18,4 @@ langchain_astradb
 python-multipart
 pymupdf
 redis
+langgraph-api

@@ -26,30 +26,8 @@ class RAG_nodes:
         self.hallucination_grader = GradeHallucinations().get_hallucination_grader()
         self.answer_grader = answer_grader().get_answer_grader()
         
-    
-    def initialize_state(self, state: GraphState):
-        """
-        Initialize or reset the document tries counter and upload status for each graph run.
-        
-        Args:
-            state (dict): The current graph state
-            
-        Returns:
-            state (dict): State with properly initialized fields
-        """
-        print("---INITIALIZING STATE---")
-        question = state["question"]
-        
-        # Always reset the counter, upload status, and source type for each new graph run
-        return {
-            "question": question,
-            "number_of_document_tries": 0,
-            "upload_status": "False",
-            "source_type": "unknown"
-        }
 
     def retrieve(self , state: GraphState):
-
         """
         Retrieve documents
 
@@ -238,12 +216,6 @@ class RAG_nodes:
             print("---ROUTE QUESTION TO RAG---")
             return "vectorstore"
         
-
-
-    
-        
-
-
         
     def grade_generation_v_documents_and_question(self , state:GraphState ):
         """
@@ -366,8 +338,6 @@ class RAG_nodes:
             "source_type": source_type
         }
         
-        
-
 
     def decide_to_upload(self, state: GraphState):
         """
@@ -388,7 +358,6 @@ class RAG_nodes:
         else:
             print("---DECISION: DO NOT UPLOAD---")
             return "no"
-        
         
 
     def send_answer_vectorstore(self, state: GraphState):
@@ -435,27 +404,3 @@ class RAG_nodes:
                 "upload_status": "failed",
                 "source_type": source_type
             }
-
-
-        
-
-
-            
-
-
-
-
-
-
-
-
-    
-
-
-        
-
-
-    
-
-
-    

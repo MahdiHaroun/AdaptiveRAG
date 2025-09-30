@@ -61,6 +61,7 @@ app = FastAPI(
 # Request/Response models
 class QuestionRequest(BaseModel):
     question: str = Field(..., description="The question to ask the RAG system", min_length=1)
+    number_of_documents_attempted: int = Field(..., description="Number of document retrieval attempts")
     
 class RAGResponse(BaseModel):
     answer: str = Field(..., description="The generated answer")
