@@ -112,6 +112,10 @@ The system begins with `route_question`, deciding whether to:
 - **Corrective**: Fixes bad answers through retries or human review
 - **Safe**: Prevents infinite loops by ending on hallucinations or unsupported answers
 
+### Improvements Over Time
+- **PDF Ingestion**: API endpoint to upload a PDF and process it to feed the vector store with new data.  
+- **User Feedback Improvement**: When the vector store doesn't retrieve a relevant document after 3 unsuccessful loops and the answer comes from web search, the user will be asked for feedback on the web search result. Depending on their feedback, the vector store will be updated.
+
 ---
 
 *For more details, see the code comments and individual module documentation.*
