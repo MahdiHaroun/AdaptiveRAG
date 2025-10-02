@@ -117,5 +117,3 @@ The system begins with `route_question`, deciding whether to:
 - **User Feedback Improvement**: When the vector store doesn't retrieve a relevant document after 3 unsuccessful loops and the answer comes from web search, the user will be asked for feedback on the web search result. Depending on their feedback, the vector store will be updated.
 
 ---
-
-*For more details, see the code comments and individual module documentation.*
