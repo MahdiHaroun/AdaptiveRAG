@@ -13,7 +13,7 @@ class resumeRequest(BaseModel):
 
 class GraphResponse(BaseModel):
     thread_id: str
-    run_status: Literal["finished", "user_feedback"]
+    run_status: Literal["finished", "human_in_the_loop"]
     answer : Optional[str] = None
     number_of_documents_tries : int
     answer_source : Optional[str] = None

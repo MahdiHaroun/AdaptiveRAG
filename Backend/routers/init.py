@@ -19,8 +19,8 @@ async def run_graph_and_response(input_state, config):
     print(state)
     next_nodes = state.next
     thread_id = config["configurable"]["thread_id"]
-    if next_nodes and "human_feedback" in next_nodes:
-            run_status = "user_feedback"
+    if next_nodes and "human_in_the_loop" in next_nodes:
+            run_status = "human_in_the_loop"
     else:
             run_status = "finished"
     return GraphResponse(

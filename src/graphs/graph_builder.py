@@ -62,7 +62,7 @@ class Graph_builder:
             "grade_documents",
             route_question_after_attempt,
             {
-                "generate": "generate",
+                "generate": "generate", 
                 "web_search": "web_search",
                 "transform_query": "transform_query"
             },
